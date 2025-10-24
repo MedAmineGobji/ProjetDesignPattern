@@ -1,0 +1,357 @@
+@startuml SpaceInvaders_DesignPatterns
+
+' Configuration du diagramme
+!theme cerulean-outline
+skinparam backgroundColor #F8F9FA
+skinparam classBorderColor #343A40
+skinparam classBackgroundColor #FFFFFF
+
+title Space Invaders - Architecture avec Design Patterns
+
+' ============= STATE PATTERN =============
+package "State Pattern" as state_pkg {
+    abstract class GameState {
+        - context: SpaceInvadersGame
+        + enter(): void
+        + exit(): void
+        + update(deltaTime: double): void
+        + render(): void
+        + handleKeyPressed(event: KeyEvent): void
+        + handleKeyReleased(event: KeyEvent): void
+        + getStateName(): String
+    }
+    
+    class MenuState {
+        - selectedOption: int
+        - menuOptions: String[]
+        + executeSelectedOption(): void
+    }
+    
+    class PlayingState {
+        - leftPressed: boolean
+        - rightPressed: boolean
+        - spacePressed: boolean
+        + renderUI(): void
+    }
+    
+    class PausedState {
+        - selectedOption: int
+        - pauseOptions: String[]
+        + executeSelectedOption(): void
+    }
+    
+    class GameOverState {
+        - selectedOption: int
+        - gameOverOptions: String[]
+        - victory: boolean
+        - finalScore: int
+        + executeSelectedOption(): void
+    }
+}
+
+' ============= FACTORY PATTERN =============
+package "Factory Pattern" as factory_pkg {
+    abstract class EntityFactory {
+        + {static} createEntity(): GameEntity
+    }
+    
+    class "EntityFactory::EnemyFactory" as EnemyFactory {
+        + {static} createEnemy(type: EnemyType, x: double, y: double): Enemy
+        + {static} createRandomEnemy(x: double, y: double): Enemy
+        + {static} createEnemyForWave(waveNumber: int, x: double, y: double): Enemy
+    }
+    
+    class "EntityFactory::ProjectileFactory" as ProjectileFactory {
+        + {static} createPlayerProjectile(x: double, y: double): Projectile
+        + {static} createEnemyProjectile(x: double, y: double): Projectile
+    }
+    
+    class "EntityFactory::PowerUpFactory" as PowerUpFactory {
+        + {static} createPowerUp(type: PowerUpType, x: double, y: double): PowerUp
+        + {static} createRandomPowerUp(x: double, y: double): PowerUp
+        + {static} createPowerUpWithProbability(x: double, y: double, probability: double): PowerUp
+    }
+}
+
+' ============= DECORATOR PATTERN =============
+package "Decorator Pattern" as decorator_pkg {
+    interface PlayerCapabilities {
+        + move(direction: int, deltaTime: double, screenWidth: double): void
+        + stop(): void
+        + shoot(currentTime: double): List<Projectile>
+        + canShoot(currentTime: double): boolean
+        + render(gc: GraphicsContext): void
+        + update(deltaTime: double): void
+        + getX(): double
+        + getY(): double
+        + getWidth(): double
+        + getHeight(): double
+        + getLives(): int
+        + takeDamage(): void
+        + isAlive(): boolean
+    }
+    
+    class BasicPlayerCapabilities {
+        - player: Player
+        + getPlayer(): Player
+    }
+    
+    abstract class PlayerDecorator {
+        # player: PlayerCapabilities
+        # duration: double
+        # timeRemaining: double
+        + isActive(): boolean
+        + getTimeRemaining(): double
+        + getPowerUpName(): String
+        + getDecoratedPlayer(): PlayerCapabilities
+        # renderEffect(gc: GraphicsContext): void
+    }
+    
+    class RapidFireDecorator {
+        - RAPID_FIRE_COOLDOWN: double = 0.1
+        - lastShotTime: double
+        + getPowerUpName(): String
+    }
+    
+    class TripleShotDecorator {
+        + getPowerUpName(): String
+    }
+    
+    class SpeedBoostDecorator {
+        - SPEED_MULTIPLIER: double = 1.5
+        + getPowerUpName(): String
+    }
+    
+    class ShieldDecorator {
+        - shieldActive: boolean
+        + getPowerUpName(): String
+    }
+}
+
+' ============= COMPOSITE PATTERN =============
+package "Composite Pattern" as composite_pkg {
+    interface EnemyComponent {
+        + update(deltaTime: double): void
+        + render(gc: GraphicsContext): void
+        + move(deltaX: double, deltaY: double): void
+        + isDestroyed(): boolean
+        + destroy(): void
+        + getAliveCount(): int
+        + getMinX(): double
+        + getMaxX(): double
+        + getMinY(): double
+        + getMaxY(): double
+        + checkCollision(x: double, y: double, width: double, height: double): boolean
+    }
+    
+    class EnemyLeaf {
+        - enemy: Enemy
+        + getEnemy(): Enemy
+    }
+    
+    class EnemyFormation {
+        - components: List<EnemyComponent>
+        - formationName: String
+        - formationSpeedX: double
+        - movingRight: boolean
+        - screenWidth: double
+        + addComponent(component: EnemyComponent): void
+        + removeComponent(component: EnemyComponent): void
+        + getComponents(): List<EnemyComponent>
+        + setScreenWidth(screenWidth: double): void
+        + setFormationSpeed(speedX: double): void
+        - updateFormationMovement(deltaTime: double): void
+    }
+    
+    class FormationFactory {
+        + {static} createRectangularFormation(...): EnemyFormation
+        + {static} createVFormation(...): EnemyFormation
+        + {static} createDiamondFormation(...): EnemyFormation
+        + {static} createWave(waveNumber: int, screenWidth: double): EnemyFormation
+    }
+}
+
+' ============= ENTITÉS DU JEU =============
+package "Game Entities" as entities_pkg {
+    abstract class GameEntity {
+        # x: double
+        # y: double
+        # width: double
+        # height: double
+        # velocityX: double
+        # velocityY: double
+        # alive: boolean
+        # color: Color
+        + update(deltaTime: double): void
+        + render(gc: GraphicsContext): void
+        + collidesWith(other: GameEntity): boolean
+        + destroy(): void
+    }
+    
+    class Player {
+        - PLAYER_SPEED: double = 300.0
+        - lives: int
+        - lastShotTime: double
+        - SHOT_COOLDOWN: double = 0.3
+        + moveLeft(): void
+        + moveRight(): void
+        + stop(): void
+        + canShoot(currentTime: double): boolean
+        + shoot(currentTime: double): void
+        + takeDamage(): void
+        + addLife(): void
+        + constrainToScreen(screenWidth: double): void
+    }
+    
+    abstract class Enemy {
+        # points: int
+        # lastShotTime: double
+        # shotCooldown: double
+        # type: EnemyType
+        + canShoot(currentTime: double): boolean
+        + shoot(currentTime: double): void
+        + moveInFormation(moveDown: boolean, changeDirection: boolean): void
+    }
+    
+    class BasicEnemy {
+        + BasicEnemy(x: double, y: double)
+    }
+    
+    class FastEnemy {
+        + FastEnemy(x: double, y: double)
+    }
+    
+    class HeavyEnemy {
+        - hitPoints: int = 2
+        + getHitPoints(): int
+    }
+    
+    class Projectile {
+        - isPlayerProjectile: boolean
+        - PROJECTILE_SPEED: double = 400.0
+        + isPlayerProjectile(): boolean
+    }
+    
+    abstract class PowerUp {
+        # type: PowerUpType
+        # lifeTime: double = 10.0
+        # age: double = 0
+        # renderIcon(gc: GraphicsContext): void
+    }
+    
+    enum "Enemy::EnemyType" as EnemyType {
+        BASIC(10, GREEN)
+        FAST(20, ORANGE)
+        HEAVY(30, PURPLE)
+        --
+        - points: int
+        - color: Color
+    }
+    
+    enum "PowerUp::PowerUpType" as PowerUpType {
+        RAPID_FIRE
+        TRIPLE_SHOT
+        SPEED_BOOST
+        SHIELD
+        EXTRA_LIFE
+        --
+        - name: String
+        - color: Color
+    }
+}
+
+' ============= MOTEUR PRINCIPAL =============
+package "Game Engine" as engine_pkg {
+    class SpaceInvadersGame {
+        - currentState: GameState
+        - player: PlayerCapabilities
+        - projectiles: List<Projectile>
+        - powerUps: List<PowerUp>
+        - currentWave: EnemyFormation
+        - graphicsContext: GraphicsContext
+        - score: int
+        - waveNumber: int
+        - gameRunning: boolean
+        - gameOver: boolean
+        - victory: boolean
+        + changeState(newState: GameState): void
+        + initializeGame(): void
+        + updateGame(deltaTime: double): void
+        + renderGame(): void
+        + movePlayer(direction: int): void
+        + playerShoot(): void
+        + shutdown(): void
+        - createNewWave(): void
+        - handleCollisions(): void
+        - applyPowerUp(type: PowerUpType): void
+        - cleanupExpiredDecorators(): void
+    }
+    
+    class SpaceInvadersApplication {
+        - game: SpaceInvadersGame
+        - gameLoop: AnimationTimer
+        + start(primaryStage: Stage): void
+        + {static} main(args: String[]): void
+    }
+}
+
+' ============= RELATIONS =============
+
+' State Pattern Relations
+GameState <|-- MenuState
+GameState <|-- PlayingState
+GameState <|-- PausedState
+GameState <|-- GameOverState
+SpaceInvadersGame --> GameState : context
+
+' Factory Pattern Relations
+EntityFactory --> EnemyFactory
+EntityFactory --> ProjectileFactory
+EntityFactory --> PowerUpFactory
+
+' Decorator Pattern Relations
+PlayerCapabilities <|.. BasicPlayerCapabilities
+PlayerCapabilities <|.. PlayerDecorator
+PlayerDecorator <|-- RapidFireDecorator
+PlayerDecorator <|-- TripleShotDecorator
+PlayerDecorator <|-- SpeedBoostDecorator
+PlayerDecorator <|-- ShieldDecorator
+BasicPlayerCapabilities --> Player
+
+' Composite Pattern Relations
+EnemyComponent <|.. EnemyLeaf
+EnemyComponent <|.. EnemyFormation
+EnemyLeaf --> Enemy
+EnemyFormation "1" *-- "*" EnemyComponent : components
+FormationFactory ..> EnemyFormation : creates
+
+' Entity Relations
+GameEntity <|-- Player
+GameEntity <|-- Enemy
+GameEntity <|-- Projectile
+GameEntity <|-- PowerUp
+Enemy <|-- BasicEnemy
+Enemy <|-- FastEnemy
+Enemy <|-- HeavyEnemy
+Enemy --> EnemyType
+PowerUp --> PowerUpType
+
+' Main Engine Relations
+SpaceInvadersGame --> PlayerCapabilities
+SpaceInvadersGame --> EnemyFormation
+SpaceInvadersGame "1" *-- "*" Projectile
+SpaceInvadersGame "1" *-- "*" PowerUp
+SpaceInvadersApplication --> SpaceInvadersGame
+
+' Factory Usage
+EnemyFactory ..> Enemy : creates
+ProjectileFactory ..> Projectile : creates
+PowerUpFactory ..> PowerUp : creates
+
+' Notes sur les patterns
+note top of state_pkg : **STATE PATTERN**\nGère les différents états du jeu\n(Menu, Playing, Paused, GameOver)\navec transitions fluides
+note top of factory_pkg : **FACTORY PATTERN**\nCrée les différents types d'entités\n(Ennemis, Projectiles, PowerUps)\nselon le contexte du jeu
+note top of decorator_pkg : **DECORATOR PATTERN**\nAjoute dynamiquement des capacités\nau joueur via les power-ups\nsans modifier la classe de base
+note top of composite_pkg : **COMPOSITE PATTERN**\nOrganise les ennemis en formations\nhiérarchiques complexes\npour créer des vagues variées
+
+@enduml
